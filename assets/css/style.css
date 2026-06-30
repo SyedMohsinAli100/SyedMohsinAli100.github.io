@@ -1290,6 +1290,20 @@ body {
 }
 
 /* =====================================================
+   MEDIA THEFT DETERRENTS
+   ===================================================== */
+img,
+video {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* =====================================================
    INTRO SCREEN
    ===================================================== */
 #intro-screen {

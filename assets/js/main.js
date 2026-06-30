@@ -1,5 +1,17 @@
 'use strict';
 
+// ── Media theft deterrents (casual copying only) ───────
+// Blocks right-click "Save as", drag-to-save, and long-press save on media.
+// Note: cannot stop DevTools/screen capture — nothing client-side can.
+document.addEventListener('contextmenu', e => {
+  if (e.target.closest('img, video, .project-thumb, .overlay-media, .overlay-gallery')) {
+    e.preventDefault();
+  }
+});
+document.addEventListener('dragstart', e => {
+  if (e.target.closest('img, video')) e.preventDefault();
+});
+
 // ── Intro Screen ───────────────────────────────────────
 (function () {
   const intro = document.getElementById('intro-screen');
@@ -107,7 +119,7 @@ function openOverlay(card) {
       const fig = document.createElement('div');
       fig.className = 'overlay-gallery-item';
       const img = document.createElement('img');
-      img.src = src; img.alt = ''; img.loading = 'lazy';
+      img.src = src; img.alt = ''; img.loading = 'lazy'; img.draggable = false;
       img.addEventListener('error', () => fig.remove());
       fig.appendChild(img);
       grid.appendChild(fig);
@@ -120,8 +132,8 @@ function openOverlay(card) {
       wrap.className = 'overlay-media-item';
       const isVid = /\.(mp4|webm|mov)$/i.test(src);
       wrap.innerHTML = isVid
-        ? `<video src="${src}" controls playsinline></video>`
-        : `<img src="${src}" alt="" loading="lazy" />`;
+        ? `<video src="${src}" controls playsinline controlslist="nodownload noplaybackrate noremoteplayback" disablepictureinpicture></video>`
+        : `<img src="${src}" alt="" loading="lazy" draggable="false" />`;
       overlayMedia.insertBefore(wrap, overlayEmpty);
     });
   }
