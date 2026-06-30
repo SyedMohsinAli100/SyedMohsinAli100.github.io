@@ -12,17 +12,7 @@ document.addEventListener('dragstart', e => {
   if (e.target.closest('img, video')) e.preventDefault();
 });
 
-// ── Intro Screen ───────────────────────────────────────
-(function () {
-  const intro = document.getElementById('intro-screen');
-  const text  = document.getElementById('intro-text');
-  if (!intro) return;
-
-  document.body.style.overflow = 'hidden';
-  setTimeout(() => { text.classList.add('show'); }, 200);
-  setTimeout(() => { intro.classList.add('fade-out'); document.body.style.overflow = ''; }, 1800);
-  setTimeout(() => { intro.remove(); }, 2600);
-})();
+// ── Intro + background waves run together (see boot sequence below) ──
 
 // ── Theme Color Cycle ──────────────────────────────────
 (function () {
@@ -54,6 +44,146 @@ document.addEventListener('dragstart', e => {
       applyTheme(current);
     });
   }
+})();
+
+// ── Background wave fields + intro sequence ────────────
+// One crisp, "PS4-style" wave field plays during loading, blurs out, and hands
+// off to a soft ambient field that drifts behind the whole site forever.
+(function () {
+  const introScreen = document.getElementById('intro-screen');
+  const introText   = document.getElementById('intro-text');
+  const introCanvas = document.getElementById('intro-waves');
+  const bgCanvas    = document.getElementById('bg-waves');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function hexToRgb(hex) {
+    hex = (hex || '').trim().replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const n = parseInt(hex || '7DD3E8', 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+  const themeColor = () => hexToRgb(getComputedStyle(document.documentElement).getPropertyValue('--cyan'));
+  const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
+  const tint = (c, s) => `${clamp(c.r + s)}, ${clamp(c.g + s * 0.4)}, ${clamp(c.b - s * 0.3)}`;
+
+  function makeWaveField(canvas, opts) {
+    if (!canvas) return null;
+    const ctx = canvas.getContext('2d');
+    const { res, frame, layers } = opts;
+    const stroke = !!opts.prominent;
+    let base = themeColor();
+    let W, H, raf = null, last = 0, t = 0, running = false;
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2) * res;
+      W = canvas.width  = Math.max(1, Math.floor(canvas.clientWidth  * dpr));
+      H = canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    }
+    resize();
+    window.addEventListener('resize', resize, { passive: true });
+
+    function drawWave(l) {
+      const baseY = H * l.yo, A = H * l.amp;
+      const k = (Math.PI * 2) / (W * l.len);
+      const ph = t * l.speed * Math.PI * 2;
+      const step = Math.max(5, Math.floor(W / 64));
+      const pts = [];
+      for (let x = 0; x <= W; x += step) {
+        pts.push([x, baseY + Math.sin(x * k + ph) * A + Math.sin(x * k * 0.5 - ph * 1.4) * A * 0.45]);
+      }
+      const rgb = tint(base, l.shift);
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (const p of pts) ctx.lineTo(p[0], p[1]);
+      ctx.lineTo(W, H); ctx.closePath();
+      const g = ctx.createLinearGradient(0, baseY - A, 0, H);
+      g.addColorStop(0, `rgba(${rgb}, ${l.alpha})`);
+      g.addColorStop(1, `rgba(${rgb}, 0)`);
+      ctx.fillStyle = g; ctx.fill();
+      if (stroke) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (const p of pts) ctx.lineTo(p[0], p[1]);
+        ctx.lineWidth = Math.max(1.5, H * 0.004);
+        ctx.strokeStyle = `rgba(${rgb}, ${Math.min(0.9, l.alpha + 0.35)})`;
+        ctx.stroke();
+      }
+    }
+    function render() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'lighter';
+      for (const l of layers) drawWave(l);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    function loop(now) {
+      if (!running) return;
+      raf = requestAnimationFrame(loop);
+      if (document.hidden) { last = now; return; }
+      if (now - last < frame) return;
+      t += (now - last) / 1000; last = now;
+      render();
+    }
+    return {
+      start()   { if (running) return; running = true; last = 0; raf = requestAnimationFrame(loop); },
+      stop()    { running = false; if (raf) cancelAnimationFrame(raf); },
+      still()   { resize(); t = 8; render(); },
+      recolor() { base = themeColor(); }
+    };
+  }
+
+  const ambientLayers = [
+    { amp: 0.10, yo: 0.34, len: 1.3, speed:  0.05,  alpha: 0.45, shift:  35 },
+    { amp: 0.14, yo: 0.55, len: 0.9, speed: -0.035, alpha: 0.40, shift:   0 },
+    { amp: 0.11, yo: 0.78, len: 1.7, speed:  0.025, alpha: 0.32, shift: -30 }
+  ];
+  const introLayers = [
+    { amp: 0.07, yo: 0.30, len: 1.6,  speed:  0.06,  alpha: 0.28, shift:  45 },
+    { amp: 0.10, yo: 0.44, len: 1.2,  speed: -0.05,  alpha: 0.36, shift:  20 },
+    { amp: 0.13, yo: 0.58, len: 0.95, speed:  0.045, alpha: 0.40, shift:   0 },
+    { amp: 0.11, yo: 0.72, len: 1.4,  speed: -0.035, alpha: 0.34, shift: -25 },
+    { amp: 0.08, yo: 0.86, len: 2.0,  speed:  0.03,  alpha: 0.28, shift: -45 }
+  ];
+
+  const ambient = makeWaveField(bgCanvas,    { res: 0.5, frame: 33, layers: ambientLayers });
+  const intro   = makeWaveField(introCanvas, { res: 0.6, frame: 24, layers: introLayers, prominent: true });
+
+  const toggle = document.getElementById('theme-toggle');
+  if (toggle) toggle.addEventListener('click', () => setTimeout(() => {
+    if (ambient) ambient.recolor();
+    if (intro)   intro.recolor();
+  }, 0));
+
+  // No intro markup → just run the ambient field
+  if (!introScreen) {
+    if (ambient) { reduceMotion ? ambient.still() : ambient.start(); }
+    if (bgCanvas) bgCanvas.classList.add('visible');
+    return;
+  }
+
+  document.body.style.overflow = 'hidden';
+
+  if (reduceMotion) {
+    if (intro)   intro.still();
+    if (ambient) ambient.still();
+    if (introCanvas) introCanvas.classList.add('show');
+    setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 200);
+    setTimeout(() => { introScreen.classList.add('fade-out'); document.body.style.overflow = ''; }, 900);
+    setTimeout(() => { introScreen.remove(); if (intro) intro.stop(); }, 1700);
+    return;
+  }
+
+  if (intro)   intro.start();
+  if (ambient) ambient.start();
+
+  setTimeout(() => { if (introCanvas) introCanvas.classList.add('show'); }, 100);   // prominent waves in
+  setTimeout(() => { if (introText)   introText.classList.add('show'); }, 300);     // loading text in
+  setTimeout(() => {                                                                // blur out + text out
+    if (introCanvas) introCanvas.classList.add('blurring');
+    if (introText)   introText.classList.remove('show');
+  }, 2000);
+  setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 2700);     // ambient ready behind overlay
+  setTimeout(() => { introScreen.classList.add('fade-out'); document.body.style.overflow = ''; }, 3100); // reveal site
+  setTimeout(() => { introScreen.remove(); if (intro) intro.stop(); }, 3900);       // cleanup
 })();
 
 // ── Nav scroll ─────────────────────────────────────────
