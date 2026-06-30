@@ -1196,11 +1196,6 @@ body {
     max-width: 100%;
   }
 
-  .nav-links li:nth-child(3),
-  .nav-links li:nth-child(4) {
-    display: none;
-  }
-
   .hero {
     padding: 110px 24px 60px;
   }
@@ -1248,11 +1243,50 @@ body {
 
   body {
     cursor: auto;
+    overflow-x: hidden;
   }
 
   .cursor, .cursor-trail {
     display: none;
   }
+}
+
+/* =====================================================
+   PHONE  (≤ 480px)
+   ===================================================== */
+@media (max-width: 480px) {
+  .nav-wrapper { padding: 12px; }
+  .nav-pill { padding: 5px 12px; }
+  .logo-mark { font-size: 14px; }
+  .nav-links { gap: 0; }
+  .nav-links a { padding: 8px 10px; font-size: 13px; }
+
+  .hero { padding: 96px 20px 48px; }
+  .hero-title { font-size: clamp(40px, 13vw, 60px); margin-bottom: 22px; }
+  .hero-sub { font-size: 16px; margin-bottom: 24px; }
+  .hero-actions { flex-wrap: wrap; gap: 10px; }
+  .hero-actions .btn { flex: 1 1 140px; justify-content: center; text-align: center; }
+
+  .section,
+  .section-about,
+  .section-contact { padding: 64px 20px; }
+
+  .section-title { font-size: clamp(32px, 9vw, 44px); margin-bottom: 32px; }
+  .filter-bar { margin-bottom: 32px; }
+
+  .skills-block { grid-template-columns: 1fr; gap: 24px; padding-top: 28px; margin-top: 32px; }
+
+  .contact-title { font-size: clamp(38px, 13vw, 60px); }
+  .contact-email { font-size: 15px; word-break: break-word; }
+
+  /* Overlay tuned for phones */
+  .overlay-sheet { height: 96vh; }
+  .overlay-header { padding: 14px 16px; }
+  .overlay-body { padding: 16px 14px; gap: 18px; }
+  .overlay-title { font-size: 30px; }
+  .overlay-media-item video,
+  .overlay-media-item img { max-height: 50vh; }
+  .overlay-gallery { grid-template-columns: repeat(2, 1fr); gap: 8px; }
 }
 
 /* =====================================================

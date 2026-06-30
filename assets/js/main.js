@@ -175,6 +175,8 @@ document.querySelectorAll('.project-thumb img').forEach(img => {
 });
 
 // ── Hover Video + Card Click ───────────────────────────
+const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
 projectCards.forEach(card => {
   const thumb = card.querySelector('.project-thumb');
   if (!thumb) return;
@@ -188,7 +190,7 @@ projectCards.forEach(card => {
   const hasThumb = !!card.dataset.thumb;
   const isVideo  = src && /\.(mp4|webm|mov)$/i.test(src);
 
-  if (isVideo && hasThumb) {
+  if (canHover && isVideo && hasThumb) {
     // TIER 1 — static thumbnail jpg, video plays on hover
     const vid = document.createElement('video');
     vid.src = src; vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'none';
@@ -198,7 +200,7 @@ projectCards.forEach(card => {
     card.addEventListener('mouseenter', () => { clearTimeout(leaveTimer); vid.play().catch(() => {}); vid.style.opacity = '1'; });
     card.addEventListener('mouseleave', () => { vid.style.opacity = '0'; leaveTimer = setTimeout(() => { vid.pause(); vid.currentTime = 0; }, 500); });
 
-  } else if (isVideo) {
+  } else if (canHover && isVideo) {
     // TIER 2 — no thumbnail, dissolving random frames, live playback on hover
     const vidA = makeDissolveVid(src);
     const vidB = makeDissolveVid(src);
