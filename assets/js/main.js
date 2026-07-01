@@ -71,6 +71,8 @@ document.addEventListener('dragstart', e => {
     const ctx = canvas.getContext('2d');
     const { res, frame, layers } = opts;
     const stroke = !!opts.prominent;
+    const ribbon = !!opts.ribbon;
+    const speedScale = opts.speedScale || 1;
     let base = themeColor();
     let W, H, raf = null, last = 0, t = 0, running = false;
 
@@ -85,7 +87,7 @@ document.addEventListener('dragstart', e => {
     function drawWave(l) {
       const baseY = H * l.yo, A = H * l.amp;
       const k = (Math.PI * 2) / (W * l.len);
-      const ph = t * l.speed * Math.PI * 2;
+      const ph = t * l.speed * speedScale * Math.PI * 2;
       const step = Math.max(5, Math.floor(W / 64));
       const pts = [];
       for (let x = 0; x <= W; x += step) {
@@ -109,10 +111,45 @@ document.addEventListener('dragstart', e => {
         ctx.stroke();
       }
     }
+    function drawRibbon(l) {
+      const S = Math.min(W, H);
+      const baseY = H * l.yo, A = S * l.amp;
+      const k = (Math.PI * 2) / (W * l.len);
+      const kt = (Math.PI * 2) / (W * l.len * 0.6);
+      const ph = t * l.speed * speedScale * Math.PI * 2;
+      const pht = ph * 1.3;
+      const maxT = S * l.thick;
+      const step = Math.max(4, Math.floor(W / 90));
+      const top = [], bot = [];
+      for (let x = 0; x <= W; x += step) {
+        const wy = baseY + Math.sin(x * k + ph) * A + Math.sin(x * k * 0.5 - ph * 1.4) * A * 0.45;
+        const ht = maxT * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(x * kt + pht)));
+        top.push([x, wy - ht]);
+        bot.push([x, wy + ht]);
+      }
+      const rgb = tint(base, l.shift);
+      ctx.beginPath();
+      ctx.moveTo(top[0][0], top[0][1]);
+      for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
+      for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1]);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${rgb}, ${l.fill})`;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, H * 0.0016);
+      ctx.strokeStyle = `rgba(${rgb}, ${l.line})`;
+      ctx.beginPath();
+      ctx.moveTo(top[0][0], top[0][1]);
+      for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bot[0][0], bot[0][1]);
+      for (let i = 1; i < bot.length; i++) ctx.lineTo(bot[i][0], bot[i][1]);
+      ctx.stroke();
+    }
     function render() {
       ctx.clearRect(0, 0, W, H);
       ctx.globalCompositeOperation = 'lighter';
-      for (const l of layers) drawWave(l);
+      for (const l of layers) (ribbon ? drawRibbon : drawWave)(l);
       ctx.globalCompositeOperation = 'source-over';
     }
     function loop(now) {
@@ -137,15 +174,15 @@ document.addEventListener('dragstart', e => {
     { amp: 0.11, yo: 0.78, len: 1.7, speed:  0.025, alpha: 0.32, shift: -30 }
   ];
   const introLayers = [
-    { amp: 0.07, yo: 0.30, len: 1.6,  speed:  0.06,  alpha: 0.28, shift:  45 },
-    { amp: 0.10, yo: 0.44, len: 1.2,  speed: -0.05,  alpha: 0.36, shift:  20 },
-    { amp: 0.13, yo: 0.58, len: 0.95, speed:  0.045, alpha: 0.40, shift:   0 },
-    { amp: 0.11, yo: 0.72, len: 1.4,  speed: -0.035, alpha: 0.34, shift: -25 },
-    { amp: 0.08, yo: 0.86, len: 2.0,  speed:  0.03,  alpha: 0.28, shift: -45 }
+    { yo: 0.47, amp: 0.05, len: 1.5, speed:  0.05,  thick: 0.045, fill: 0.06, line: 0.30, shift:  35 },
+    { yo: 0.50, amp: 0.07, len: 1.1, speed: -0.04,  thick: 0.060, fill: 0.07, line: 0.34, shift:  10 },
+    { yo: 0.53, amp: 0.06, len: 1.8, speed:  0.03,  thick: 0.038, fill: 0.05, line: 0.26, shift: -20 },
+    { yo: 0.50, amp: 0.09, len: 0.9, speed: -0.025, thick: 0.030, fill: 0.05, line: 0.30, shift: -42 }
   ];
 
-  const ambient = makeWaveField(bgCanvas,    { res: 0.5, frame: 33, layers: ambientLayers });
-  const intro   = makeWaveField(introCanvas, { res: 0.6, frame: 24, layers: introLayers, prominent: true });
+  const speedScale = reduceMotion ? 0.5 : 1;
+  const ambient = makeWaveField(bgCanvas,    { res: 0.5, frame: 33, layers: ambientLayers, speedScale });
+  const intro   = makeWaveField(introCanvas, { res: 0.6, frame: 24, layers: introLayers, ribbon: true, speedScale });
 
   const toggle = document.getElementById('theme-toggle');
   if (toggle) toggle.addEventListener('click', () => setTimeout(() => {
@@ -153,37 +190,26 @@ document.addEventListener('dragstart', e => {
     if (intro)   intro.recolor();
   }, 0));
 
-  // No intro markup → just run the ambient field
+  if (ambient) ambient.start();
+
+  // No intro markup → just show the ambient field
   if (!introScreen) {
-    if (ambient) { reduceMotion ? ambient.still() : ambient.start(); }
     if (bgCanvas) bgCanvas.classList.add('visible');
     return;
   }
 
   document.body.style.overflow = 'hidden';
+  if (intro) intro.start();
 
-  if (reduceMotion) {
-    if (intro)   intro.still();
-    if (ambient) ambient.still();
-    if (introCanvas) introCanvas.classList.add('show');
-    setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 200);
-    setTimeout(() => { introScreen.classList.add('fade-out'); document.body.style.overflow = ''; }, 900);
-    setTimeout(() => { introScreen.remove(); if (intro) intro.stop(); }, 1700);
-    return;
-  }
-
-  if (intro)   intro.start();
-  if (ambient) ambient.start();
-
-  setTimeout(() => { if (introCanvas) introCanvas.classList.add('show'); }, 100);   // prominent waves in
-  setTimeout(() => { if (introText)   introText.classList.add('show'); }, 300);     // loading text in
-  setTimeout(() => {                                                                // blur out + text out
+  setTimeout(() => { if (introCanvas) introCanvas.classList.add('show'); }, 100);    // prominent waves in
+  setTimeout(() => { if (introText)   introText.classList.add('show'); }, 400);      // loading text in
+  setTimeout(() => {                                                                 // blur out + text out
     if (introCanvas) introCanvas.classList.add('blurring');
     if (introText)   introText.classList.remove('show');
-  }, 2000);
-  setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 2700);     // ambient ready behind overlay
-  setTimeout(() => { introScreen.classList.add('fade-out'); document.body.style.overflow = ''; }, 3100); // reveal site
-  setTimeout(() => { introScreen.remove(); if (intro) intro.stop(); }, 3900);       // cleanup
+  }, 3000);
+  setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 3900);      // ambient ready behind overlay
+  setTimeout(() => { introScreen.classList.add('fade-out'); document.body.style.overflow = ''; }, 4400); // reveal site
+  setTimeout(() => { introScreen.remove(); if (intro) intro.stop(); }, 5200);        // cleanup
 })();
 
 // ── Nav scroll ─────────────────────────────────────────
