@@ -534,14 +534,16 @@ body {
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 0.3s ease, transform 0.3s ease;
+  transition: border-color 0.3s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
   display: flex;
   flex-direction: column;
 }
 
-.project-card:hover {
+.projects-grid .project-card:hover {
   border-color: rgba(125, 211, 232, 0.25);
-  transform: translateY(-4px);
+  transform: translateY(-6px) scale(1.025);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
+  z-index: 3;
 }
 
 .project-card.featured {
@@ -1181,6 +1183,14 @@ body {
   transform: translateY(0);
 }
 
+/* Project cards keep a snappy transform transition so the hover pop stays crisp */
+.project-card.fade-in-up {
+  transition: opacity 0.8s var(--ease-cinematic),
+              transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s ease,
+              border-color 0.3s ease;
+}
+
 /* =====================================================
    RESPONSIVE
    ===================================================== */
@@ -1266,13 +1276,7 @@ body {
     gap: 12px;
   }
 
-  .project-card.featured {
-    grid-column: span 1;
-  }
-
-  .project-card.featured .project-thumb {
-    aspect-ratio: 16 / 9;
-  }
+  /* Featured cards stay big on phones too, matching the desktop rhythm */
 
   /* Keep tiles from getting too tall: clamp title + description with ellipsis */
   .project-info { padding: 14px 14px 16px; gap: 8px; }
@@ -1394,7 +1398,7 @@ video {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  transition: opacity 0.7s ease;
+  transition: opacity 1.2s var(--ease-cinematic);
 }
 
 #intro-screen.fade-out {
@@ -1417,24 +1421,25 @@ video {
 #intro-waves.show { opacity: 1; }
 
 #intro-waves.blurring {
-  filter: blur(64px) saturate(150%);
+  filter: blur(50px) saturate(150%);
   opacity: 0.85;
 }
 
+/* Loading text */
 #intro-text {
   position: relative;
   z-index: 2;
   font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 400;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: rgba(238, 240, 244, 0);
-  transition: color 0.6s ease;
+  transition: color 0.7s ease;
 }
 
 #intro-text.show {
-  color: rgba(238, 240, 244, 0.5);
+  color: rgba(238, 240, 244, 0.55);
 }
 
 /* =====================================================
@@ -1470,4 +1475,46 @@ video {
   background: var(--cyan);
   transition: background 0.3s ease;
   display: block;
+}
+
+/* =====================================================
+   SOUND TOGGLE BUTTON
+   ===================================================== */
+#sound-toggle {
+  position: fixed;
+  bottom: 28px;
+  right: 76px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1000;
+  color: var(--cyan);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+#sound-toggle:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.2);
+  transform: scale(1.1);
+}
+
+#sound-toggle svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+#sound-toggle .ic-off { display: none; color: var(--white-dim); }
+#sound-toggle.muted .ic-on { display: none; }
+#sound-toggle.muted .ic-off { display: block; }
+
+@media (max-width: 480px) {
+  #theme-toggle { bottom: 20px; right: 20px; }
+  #sound-toggle { bottom: 20px; right: 64px; }
 }

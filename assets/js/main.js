@@ -46,6 +46,76 @@ document.addEventListener('dragstart', e => {
   }
 })();
 
+// ── Audio: hover SFX, intro sound, looping background music ──
+const AudioSys = (function () {
+  const KEY = 'sound-on';
+  const saved = localStorage.getItem(KEY);
+  let on = saved === null ? true : saved === '1';   // default on; speaker toggles mute
+  let unlocked = false;
+  let pendingMusic = false;
+  const MUSIC_VOL = 0.18;
+
+  const sHover = new Audio('assets/audio/hover.mp3'); sHover.volume = 0.25; sHover.preload = 'auto';
+  const sIntro = new Audio('assets/audio/intro.mp3'); sIntro.volume = 0.60; sIntro.preload = 'auto';
+  const sMusic = new Audio('assets/audio/ambient.mp3'); sMusic.loop = true; sMusic.volume = MUSIC_VOL; sMusic.preload = 'auto';
+
+  const btn = document.getElementById('sound-toggle');
+  function syncUI() {
+    if (!btn) return;
+    btn.classList.toggle('muted', !on);
+    btn.setAttribute('aria-label', on ? 'Mute sound' : 'Unmute sound');
+  }
+  syncUI();
+
+  function fadeInMusic() {
+    sMusic.volume = 0;
+    sMusic.play().then(() => {
+      const step = () => {
+        sMusic.volume = Math.min(MUSIC_VOL, sMusic.volume + 0.012);
+        if (sMusic.volume < MUSIC_VOL) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }).catch(() => {});
+  }
+
+  function playHover() {
+    if (!on || !unlocked) return;
+    try { sHover.currentTime = 0; sHover.play().catch(() => {}); } catch (e) {}
+  }
+  function playIntro() { if (on && unlocked) sIntro.play().catch(() => {}); }
+  function startMusic() {
+    if (!on) return;
+    if (!unlocked) { pendingMusic = true; return; }
+    fadeInMusic();
+  }
+
+  function setOn(v) {
+    on = v;
+    localStorage.setItem(KEY, v ? '1' : '0');
+    syncUI();
+    if (on) { if (unlocked) fadeInMusic(); }
+    else sMusic.pause();
+  }
+  if (btn) btn.addEventListener('click', () => setOn(!on));
+
+  // Audio can't start until the visitor interacts — unlock on the first gesture
+  // and kick off any music that was waiting.
+  function unlock() {
+    if (unlocked) return;
+    unlocked = true;
+    if (pendingMusic && on) { pendingMusic = false; fadeInMusic(); }
+  }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev =>
+    window.addEventListener(ev, unlock, { once: true, passive: true })
+  );
+
+  document.querySelectorAll(
+    '.nav-links a, .nav-logo, .filter-btn, .btn, .project-title, #theme-toggle, #sound-toggle, .contact-email, .overlay-close'
+  ).forEach(el => el.addEventListener('mouseenter', playHover));
+
+  return { playIntro, startMusic, isOn: () => on };
+})();
+
 // ── Background wave fields + intro sequence ────────────
 // One crisp, "PS4-style" wave field plays during loading, blurs out, and hands
 // off to a soft ambient field that drifts behind the whole site forever.
@@ -71,7 +141,6 @@ document.addEventListener('dragstart', e => {
     const ctx = canvas.getContext('2d');
     const { res, frame, layers } = opts;
     const stroke = !!opts.prominent;
-    const ribbon = !!opts.ribbon;
     const speedScale = opts.speedScale || 1;
     let base = themeColor();
     let W, H, raf = null, last = 0, t = 0, running = false;
@@ -102,54 +171,11 @@ document.addEventListener('dragstart', e => {
       g.addColorStop(0, `rgba(${rgb}, ${l.alpha})`);
       g.addColorStop(1, `rgba(${rgb}, 0)`);
       ctx.fillStyle = g; ctx.fill();
-      if (stroke) {
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        for (const p of pts) ctx.lineTo(p[0], p[1]);
-        ctx.lineWidth = Math.max(1.5, H * 0.004);
-        ctx.strokeStyle = `rgba(${rgb}, ${Math.min(0.9, l.alpha + 0.35)})`;
-        ctx.stroke();
-      }
-    }
-    function drawRibbon(l) {
-      const S = Math.min(W, H);
-      const baseY = H * l.yo, A = S * l.amp;
-      const k = (Math.PI * 2) / (W * l.len);
-      const kt = (Math.PI * 2) / (W * l.len * 0.6);
-      const ph = t * l.speed * speedScale * Math.PI * 2;
-      const pht = ph * 1.3;
-      const maxT = S * l.thick;
-      const step = Math.max(4, Math.floor(W / 90));
-      const top = [], bot = [];
-      for (let x = 0; x <= W; x += step) {
-        const wy = baseY + Math.sin(x * k + ph) * A + Math.sin(x * k * 0.5 - ph * 1.4) * A * 0.45;
-        const ht = maxT * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(x * kt + pht)));
-        top.push([x, wy - ht]);
-        bot.push([x, wy + ht]);
-      }
-      const rgb = tint(base, l.shift);
-      ctx.beginPath();
-      ctx.moveTo(top[0][0], top[0][1]);
-      for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
-      for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1]);
-      ctx.closePath();
-      ctx.fillStyle = `rgba(${rgb}, ${l.fill})`;
-      ctx.fill();
-      ctx.lineWidth = Math.max(1, H * 0.0016);
-      ctx.strokeStyle = `rgba(${rgb}, ${l.line})`;
-      ctx.beginPath();
-      ctx.moveTo(top[0][0], top[0][1]);
-      for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(bot[0][0], bot[0][1]);
-      for (let i = 1; i < bot.length; i++) ctx.lineTo(bot[i][0], bot[i][1]);
-      ctx.stroke();
     }
     function render() {
       ctx.clearRect(0, 0, W, H);
       ctx.globalCompositeOperation = 'lighter';
-      for (const l of layers) (ribbon ? drawRibbon : drawWave)(l);
+      for (const l of layers) drawWave(l);
       ctx.globalCompositeOperation = 'source-over';
     }
     function loop(now) {
@@ -174,15 +200,16 @@ document.addEventListener('dragstart', e => {
     { amp: 0.11, yo: 0.78, len: 1.7, speed:  0.025, alpha: 0.32, shift: -30 }
   ];
   const introLayers = [
-    { yo: 0.47, amp: 0.05, len: 1.5, speed:  0.05,  thick: 0.045, fill: 0.06, line: 0.30, shift:  35 },
-    { yo: 0.50, amp: 0.07, len: 1.1, speed: -0.04,  thick: 0.060, fill: 0.07, line: 0.34, shift:  10 },
-    { yo: 0.53, amp: 0.06, len: 1.8, speed:  0.03,  thick: 0.038, fill: 0.05, line: 0.26, shift: -20 },
-    { yo: 0.50, amp: 0.09, len: 0.9, speed: -0.025, thick: 0.030, fill: 0.05, line: 0.30, shift: -42 }
+    { amp: 0.07, yo: 0.30, len: 1.6,  speed:  0.06,  alpha: 0.28, shift:  45 },
+    { amp: 0.10, yo: 0.44, len: 1.2,  speed: -0.05,  alpha: 0.36, shift:  20 },
+    { amp: 0.13, yo: 0.58, len: 0.95, speed:  0.045, alpha: 0.40, shift:   0 },
+    { amp: 0.11, yo: 0.72, len: 1.4,  speed: -0.035, alpha: 0.34, shift: -25 },
+    { amp: 0.08, yo: 0.86, len: 2.0,  speed:  0.03,  alpha: 0.28, shift: -45 }
   ];
 
   const speedScale = reduceMotion ? 0.5 : 1;
   const ambient = makeWaveField(bgCanvas,    { res: 0.5, frame: 33, layers: ambientLayers, speedScale });
-  const intro   = makeWaveField(introCanvas, { res: 0.6, frame: 24, layers: introLayers, ribbon: true, speedScale });
+  const intro   = makeWaveField(introCanvas, { res: 0.6, frame: 24, layers: introLayers, speedScale });
 
   const toggle = document.getElementById('theme-toggle');
   if (toggle) toggle.addEventListener('click', () => setTimeout(() => {
@@ -201,15 +228,30 @@ document.addEventListener('dragstart', e => {
   document.body.style.overflow = 'hidden';
   if (intro) intro.start();
 
-  setTimeout(() => { if (introCanvas) introCanvas.classList.add('show'); }, 100);    // prominent waves in
-  setTimeout(() => { if (introText)   introText.classList.add('show'); }, 400);      // loading text in
-  setTimeout(() => {                                                                 // blur out + text out
-    if (introCanvas) introCanvas.classList.add('blurring');
-    if (introText)   introText.classList.remove('show');
-  }, 3000);
-  setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 3900);      // ambient ready behind overlay
-  setTimeout(() => { introScreen.classList.add('fade-out'); document.body.style.overflow = ''; }, 4400); // reveal site
-  setTimeout(() => { introScreen.remove(); if (intro) intro.stop(); }, 5200);        // cleanup
+  // Phase 1 — loading screen
+  setTimeout(() => { if (introText) introText.classList.add('show'); }, 200);
+
+  // Phase 2 — flowing waves bloom in, intro sound plays
+  setTimeout(() => {
+    if (introText) introText.classList.remove('show');
+    if (introCanvas) introCanvas.classList.add('show');
+    AudioSys.playIntro();
+  }, 1800);
+
+  // Phase 3 — waves keep flowing, then soften into blur (no freeze)
+  setTimeout(() => { if (introCanvas) introCanvas.classList.add('blurring'); }, 3700);
+  setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 4100);
+
+  // Phase 4 — smooth reveal into the portfolio + music
+  setTimeout(() => {
+    introScreen.classList.add('fade-out');
+    document.body.style.overflow = '';
+    AudioSys.startMusic();
+  }, 4700);
+  setTimeout(() => {
+    introScreen.remove();
+    if (intro) intro.stop();   // keep animating until it's off-screen, then stop
+  }, 6100);
 })();
 
 // ── Nav scroll ─────────────────────────────────────────
@@ -329,11 +371,6 @@ filterBtns.forEach(btn => {
         card.style.animation = 'fadeSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) forwards';
       }
     });
-    projectCards.forEach(card => {
-      if (card.classList.contains('featured')) {
-        card.style.gridColumn = card.classList.contains('hidden') ? '' : 'span 2';
-      }
-    });
   });
 });
 
@@ -354,80 +391,45 @@ projectCards.forEach(card => {
   hint.textContent = 'View Project';
   thumb.appendChild(hint);
 
-  const src      = card.dataset.preview;
-  const hasThumb = !!card.dataset.thumb;
-  const isVideo  = src && /\.(mp4|webm|mov)$/i.test(src);
+  const src       = card.dataset.preview;
+  const isVideo   = src && /\.(mp4|webm|mov)$/i.test(src);
+  const posterImg = thumb.querySelector('img');   // static thumbnail, if the card has one
 
-  if (canHover && isVideo && hasThumb) {
-    // TIER 1 — static thumbnail jpg, video plays on hover
+  if (canHover && isVideo) {
     const vid = document.createElement('video');
-    vid.src = src; vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'none';
-    vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 0.5s ease;z-index:2;';
+    vid.src = src;
+    vid.muted = true; vid.loop = true; vid.playsInline = true;
+    vid.preload = 'metadata';
+    vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 0.45s ease;z-index:2;';
     thumb.appendChild(vid);
+
+    // No thumbnail image → freeze the video's own first frame as the still poster
+    if (!posterImg) {
+      vid.addEventListener('loadeddata', () => {
+        try { vid.currentTime = 0.1; } catch (e) { vid.style.opacity = '1'; }
+      }, { once: true });
+      vid.addEventListener('seeked', () => { vid.style.opacity = '1'; }, { once: true });
+    }
+
     let leaveTimer = null;
-    card.addEventListener('mouseenter', () => { clearTimeout(leaveTimer); vid.play().catch(() => {}); vid.style.opacity = '1'; });
-    card.addEventListener('mouseleave', () => { vid.style.opacity = '0'; leaveTimer = setTimeout(() => { vid.pause(); vid.currentTime = 0; }, 500); });
-
-  } else if (canHover && isVideo) {
-    // TIER 2 — no thumbnail, dissolving random frames, live playback on hover
-    const vidA = makeDissolveVid(src);
-    const vidB = makeDissolveVid(src);
-    thumb.appendChild(vidA);
-    thumb.appendChild(vidB);
-
-    let active = vidA, inactive = vidB;
-    let cycleTimer = null, isHovered = false, isReady = false;
-
-    function showFrame(v, cb) {
-      if (!v.duration) return;
-      v.currentTime = v.duration * (0.05 + Math.random() * 0.88);
-      v.addEventListener('seeked', cb, { once: true });
-    }
-
-    function crossfade() {
-      if (isHovered) return;
-      inactive.pause();
-      showFrame(inactive, () => {
-        if (isHovered) return;
-        inactive.style.opacity = '1';
-        active.style.opacity   = '0';
-        [active, inactive] = [inactive, active];
-      });
-    }
-
-    function startCycle() { if (!cycleTimer) cycleTimer = setInterval(crossfade, 2400); }
-    function stopCycle()  { clearInterval(cycleTimer); cycleTimer = null; }
-
-    vidA.addEventListener('loadedmetadata', () => {
-      isReady = true;
-      showFrame(vidA, () => { vidA.style.opacity = '1'; startCycle(); });
-    }, { once: true });
-    vidA.addEventListener('error', () => console.error('Tier 2 video failed:', src));
-    vidA.load(); vidB.load();
-
     card.addEventListener('mouseenter', () => {
-      if (!isReady) return;
-      isHovered = true; stopCycle();
-      active.loop = true; active.play().catch(() => {});
-      active.style.opacity = '1'; inactive.style.opacity = '0';
+      clearTimeout(leaveTimer);
+      vid.style.opacity = '1';
+      vid.play().catch(() => {});
     });
     card.addEventListener('mouseleave', () => {
-      isHovered = false;
-      active.pause(); active.loop = false;
-      startCycle();
+      vid.pause();
+      if (posterImg) {
+        vid.style.opacity = '0';                        // fade back to the thumbnail
+        leaveTimer = setTimeout(() => { try { vid.currentTime = 0; } catch (e) {} }, 450);
+      } else {
+        try { vid.currentTime = 0.1; } catch (e) {}     // keep the first frame showing
+      }
     });
   }
 
   card.addEventListener('click', () => openOverlay(card));
 });
-
-function makeDissolveVid(src) {
-  const v = document.createElement('video');
-  v.src = src; v.muted = true; v.playsInline = true; v.preload = 'auto';
-  v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 0.8s ease;z-index:2;';
-  v.addEventListener('error', () => console.error('Video failed to load:', src));
-  return v;
-}
 
 // ── Scroll Reveal ──────────────────────────────────────
 const revealObserver = new IntersectionObserver((entries) => {
@@ -455,7 +457,8 @@ document.head.appendChild(ks);
 // Locally (Live Server) it reads the folder's directory listing.
 // When deployed to a static host, it falls back to an optional photos.json.
 async function discoverFolderImages(folder) {
-  const isImg = n => /\.(jpe?g|png|webp|gif|avif)$/i.test(n);
+  // Real photos only — skip the card's cover thumbnail and any *-thumb files.
+  const isImg = n => /\.(jpe?g|png|webp|gif|avif)$/i.test(n) && !/^cover\.|[-_]thumb\./i.test(n);
 
   // 1) Live directory listing — works with Live Server, zero maintenance.
   try {
@@ -478,7 +481,8 @@ async function discoverFolderImages(folder) {
     const res = await fetch(folder + 'photos.json', { cache: 'no-store' });
     if (res.ok) {
       const list = await res.json();
-      if (Array.isArray(list) && list.length) return list.map(n => folder + n);
+      const clean = Array.isArray(list) ? list.filter(isImg) : [];
+      if (clean.length) return clean.map(n => folder + n);
     }
   } catch (e) {}
 
@@ -489,7 +493,10 @@ document.querySelectorAll('.project-card[data-folder]').forEach(card => {
   discoverFolderImages(card.dataset.folder).then(imgs => {
     if (!imgs || !imgs.length) return;
     card.dataset.media = JSON.stringify(imgs);
-    const cover = card.querySelector('.project-thumb img');
-    if (cover) { cover.src = imgs[0]; cover.style.display = ''; }
+    // Only auto-pick a cover when the card doesn't have its own fixed thumbnail
+    if (card.dataset.thumb !== 'true') {
+      const cover = card.querySelector('.project-thumb img');
+      if (cover) { cover.src = imgs[0]; cover.style.display = ''; }
+    }
   });
 });
