@@ -113,7 +113,7 @@ const AudioSys = (function () {
     '.nav-links a, .nav-logo, .filter-btn, .btn, .project-title, #theme-toggle, #sound-toggle, .contact-email, .overlay-close'
   ).forEach(el => el.addEventListener('mouseenter', playHover));
 
-  return { playIntro, startMusic, isOn: () => on };
+  return { unlock, playIntro, startMusic, isOn: () => on };
 })();
 
 // ── Background wave fields + intro sequence ────────────
@@ -121,7 +121,7 @@ const AudioSys = (function () {
 // off to a soft ambient field that drifts behind the whole site forever.
 (function () {
   const introScreen = document.getElementById('intro-screen');
-  const introText   = document.getElementById('intro-text');
+  const introBtn    = document.getElementById('intro-btn');
   const introCanvas = document.getElementById('intro-waves');
   const bgCanvas    = document.getElementById('bg-waves');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -226,32 +226,32 @@ const AudioSys = (function () {
   }
 
   document.body.style.overflow = 'hidden';
-  if (intro) intro.start();
 
-  // Phase 1 — loading screen
-  setTimeout(() => { if (introText) introText.classList.add('show'); }, 200);
+  function runSequence() {
+    AudioSys.unlock();
+    AudioSys.playIntro();          // intro sound fires on the click
+    if (introBtn) introBtn.classList.add('gone');
+    if (intro) intro.start();      // waves begin flowing
 
-  // Phase 2 — flowing waves bloom in, intro sound plays
-  setTimeout(() => {
-    if (introText) introText.classList.remove('show');
-    if (introCanvas) introCanvas.classList.add('show');
-    AudioSys.playIntro();
-  }, 1800);
+    setTimeout(() => { if (introCanvas) introCanvas.classList.add('show'); }, 60);       // bloom in
+    setTimeout(() => { if (introCanvas) introCanvas.classList.add('blurring'); }, 2600); // soften into blur (still moving)
+    setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 3000);        // ambient ready
+    setTimeout(() => {                                                                    // smooth reveal + music
+      introScreen.classList.add('fade-out');
+      document.body.style.overflow = '';
+      AudioSys.startMusic();
+    }, 3600);
+    setTimeout(() => {
+      introScreen.remove();
+      if (intro) intro.stop();     // stop only once off-screen
+    }, 5000);
+  }
 
-  // Phase 3 — waves keep flowing, then soften into blur (no freeze)
-  setTimeout(() => { if (introCanvas) introCanvas.classList.add('blurring'); }, 3700);
-  setTimeout(() => { if (bgCanvas) bgCanvas.classList.add('visible'); }, 4100);
-
-  // Phase 4 — smooth reveal into the portfolio + music
-  setTimeout(() => {
-    introScreen.classList.add('fade-out');
-    document.body.style.overflow = '';
-    AudioSys.startMusic();
-  }, 4700);
-  setTimeout(() => {
-    introScreen.remove();
-    if (intro) intro.stop();   // keep animating until it's off-screen, then stop
-  }, 6100);
+  if (introBtn) {
+    introBtn.addEventListener('click', runSequence, { once: true });
+  } else {
+    runSequence();
+  }
 })();
 
 // ── Nav scroll ─────────────────────────────────────────

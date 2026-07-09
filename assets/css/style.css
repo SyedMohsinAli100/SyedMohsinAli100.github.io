@@ -63,7 +63,7 @@ body {
 }
 
 #bg-waves.visible {
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 @media (max-width: 768px) {
@@ -1425,21 +1425,54 @@ video {
   opacity: 0.85;
 }
 
-/* Loading text */
-#intro-text {
+/* Dynamic gradient enter button */
+.intro-btn {
   position: relative;
   z-index: 2;
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(238, 240, 244, 0);
-  transition: color 0.7s ease;
+  width: 96px;
+  height: 96px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--cyan) 0%, #a78bfa 30%, #60a5fa 55%, #f59e0b 82%, var(--cyan) 100%);
+  background-size: 300% 300%;
+  animation: introGradient 7s ease infinite;
+  box-shadow: 0 0 46px rgba(125, 211, 232, 0.35), inset 0 0 22px rgba(255, 255, 255, 0.15);
+  transition: transform 0.45s var(--ease-cinematic), box-shadow 0.45s ease, opacity 0.7s ease;
 }
 
-#intro-text.show {
-  color: rgba(238, 240, 244, 0.55);
+.intro-btn::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.28), transparent 62%);
+  pointer-events: none;
+}
+
+.intro-btn:hover {
+  transform: scale(1.09);
+  box-shadow: 0 0 70px rgba(125, 211, 232, 0.55), inset 0 0 22px rgba(255, 255, 255, 0.22);
+}
+
+.intro-btn:active { transform: scale(0.96); }
+
+.intro-btn.gone {
+  opacity: 0;
+  transform: scale(0.82);
+  pointer-events: none;
+  animation: none;
+}
+
+@keyframes introGradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-btn { animation: none; }
 }
 
 /* =====================================================
