@@ -154,7 +154,11 @@ const AudioSys = (function () {
     window.addEventListener('resize', resize, { passive: true });
 
     function drawWave(l) {
-      const baseY = H * l.yo, A = H * l.amp;
+      // Cap amplitude and vertical position using a reference dim so waves stay
+      // consistent on tall narrow mobile screens — no squeezing or stretching.
+      const refH = Math.min(H, W * 0.75, 700);
+      const baseY = (H - refH) / 2 + refH * l.yo;
+      const A = refH * l.amp;
       const k = (Math.PI * 2) / (W * l.len);
       const ph = t * l.speed * speedScale * Math.PI * 2;
       const step = Math.max(5, Math.floor(W / 64));
