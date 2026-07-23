@@ -59,7 +59,7 @@ const AudioSys = (function () {
   const sIntro = new Audio('assets/audio/intro.mp3'); sIntro.volume = 0.60; sIntro.preload = 'auto';
   const sMusic = new Audio('assets/audio/ambient.mp3'); sMusic.loop = true; sMusic.volume = MUSIC_VOL; sMusic.preload = 'auto';
 
-  const btn = document.getElementById('sound-toggle');
+  const btn = document.getElementById('sound-switch');
   function syncUI() {
     if (!btn) return;
     btn.classList.toggle('muted', !on);
@@ -154,11 +154,7 @@ const AudioSys = (function () {
     window.addEventListener('resize', resize, { passive: true });
 
     function drawWave(l) {
-      // Cap amplitude and vertical position using a reference dim so waves stay
-      // consistent on tall narrow mobile screens — no squeezing or stretching.
-      const refH = Math.min(H, W * 0.75, 700);
-      const baseY = (H - refH) / 2 + refH * l.yo;
-      const A = refH * l.amp;
+      const baseY = H * l.yo, A = H * l.amp;
       const k = (Math.PI * 2) / (W * l.len);
       const ph = t * l.speed * speedScale * Math.PI * 2;
       const step = Math.max(5, Math.floor(W / 64));
@@ -343,6 +339,8 @@ function openOverlay(card) {
   overlayPanel.classList.add('open');
   overlayPanel.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
+  // Push a history state so swipe-back closes overlay instead of leaving the page
+  history.pushState({ overlay: true }, '');
 }
 
 function closeOverlay() {
@@ -352,9 +350,16 @@ function closeOverlay() {
   overlayMedia.querySelectorAll('video').forEach(v => v.pause());
 }
 
-if (overlayClose)    overlayClose.addEventListener('click', closeOverlay);
-if (overlayBackdrop) overlayBackdrop.addEventListener('click', closeOverlay);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOverlay(); });
+// Intercept browser back gesture — close overlay instead of navigating away
+window.addEventListener('popstate', (e) => {
+  if (overlayPanel.classList.contains('open')) {
+    closeOverlay();
+  }
+});
+
+if (overlayClose)    overlayClose.addEventListener('click', () => { history.back(); });
+if (overlayBackdrop) overlayBackdrop.addEventListener('click', () => { history.back(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { history.back(); } });
 
 // ── Project Filter ─────────────────────────────────────
 const filterBtns   = document.querySelectorAll('.filter-btn');
@@ -433,6 +438,25 @@ projectCards.forEach(card => {
   }
 
   card.addEventListener('click', () => openOverlay(card));
+
+  // Optional "Play Game" button (e.g. Zero Path) — links out to the game's
+  // GitHub repo instead of opening the video overlay. Set the real URL via
+  // the card's data-github attribute; until then it's inert.
+  const playBtn = card.querySelector('.play-game-btn');
+  if (playBtn) {
+    const githubUrl = card.dataset.github || '';
+    if (githubUrl && githubUrl !== '#') {
+      playBtn.href = githubUrl;
+    } else {
+      playBtn.removeAttribute('href');
+      playBtn.classList.add('is-disabled');
+      playBtn.title = 'Play link coming soon';
+    }
+    playBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!playBtn.getAttribute('href')) e.preventDefault();
+    });
+  }
 });
 
 // ── Scroll Reveal ──────────────────────────────────────
