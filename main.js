@@ -325,13 +325,37 @@ function openOverlay(card) {
     overlayMedia.insertBefore(grid, overlayEmpty);
   } else {
     overlayEmpty.style.display = 'none';
+    // Reuse the card's thumbnail as a poster so the player has a correctly
+    // sized frame to show immediately, instead of a blank 300x150 fallback
+    // box while the actual video is still loading (or if it fails to load).
+    const posterImg = card.querySelector('.project-thumb img');
+    const posterSrc = posterImg ? posterImg.getAttribute('src') : '';
+
     media.forEach(src => {
       const wrap = document.createElement('div');
       wrap.className = 'overlay-media-item';
       const isVid = /\.(mp4|webm|mov)$/i.test(src);
-      wrap.innerHTML = isVid
-        ? `<video src="${src}" controls playsinline controlslist="nodownload noplaybackrate noremoteplayback" disablepictureinpicture></video>`
-        : `<img src="${src}" alt="" loading="lazy" draggable="false" />`;
+
+      if (isVid) {
+        const vid = document.createElement('video');
+        vid.src = src;
+        vid.controls = true;
+        vid.playsInline = true;
+        vid.preload = 'metadata';
+        if (posterSrc) vid.poster = posterSrc;
+        vid.setAttribute('controlslist', 'nodownload noplaybackrate noremoteplayback');
+        vid.setAttribute('disablepictureinpicture', '');
+        vid.addEventListener('error', () => {
+          wrap.classList.add('media-broken');
+          wrap.innerHTML = '<div class="media-broken-msg">Video failed to load.<br><span>Check that the file exists at the expected path.</span></div>';
+        });
+        wrap.appendChild(vid);
+      } else {
+        const img = document.createElement('img');
+        img.src = src; img.alt = ''; img.loading = 'lazy'; img.draggable = false;
+        img.addEventListener('error', () => { wrap.remove(); });
+        wrap.appendChild(img);
+      }
       overlayMedia.insertBefore(wrap, overlayEmpty);
     });
   }
@@ -528,3 +552,36 @@ document.querySelectorAll('.project-card[data-folder]').forEach(card => {
     }
   });
 });
+
+// ── Nav / controls hover-to-reveal ─────────────────────
+// On mouse/trackpad devices, the top nav pill and the sound/theme controls
+// stay hidden until the cursor comes near the top of the screen, then they
+// slide down into view. Touch devices keep them always visible since
+// "hovering near the top" isn't a thing there.
+(() => {
+  const canHoverReveal = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (!canHoverReveal) return;
+
+  document.documentElement.classList.add('hover-reveal');
+
+  const REVEAL_ZONE = 110; // px from top that counts as "near"
+  const HIDE_DELAY = 10;  // ms grace period before hiding, so moving the
+                            // cursor down onto the nav itself doesn't flicker
+  let hideTimer = null;
+
+  const show = () => {
+    clearTimeout(hideTimer);
+    document.documentElement.classList.add('nav-visible');
+  };
+  const scheduleHide = () => {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      document.documentElement.classList.remove('nav-visible');
+    }, HIDE_DELAY);
+  };
+
+  window.addEventListener('mousemove', (e) => {
+    if (e.clientY <= REVEAL_ZONE) show();
+    else scheduleHide();
+  });
+})();

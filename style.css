@@ -91,6 +91,20 @@ body {
   pointer-events: none;
 }
 
+/* Hover-to-reveal (desktop/mouse only — see .hover-reveal class toggled by JS) */
+.hover-reveal .nav-wrapper,
+.hover-reveal #site-controls {
+  transform: translateY(-140%);
+  opacity: 0;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+
+.hover-reveal.nav-visible .nav-wrapper,
+.hover-reveal.nav-visible #site-controls {
+  transform: translateY(0);
+  opacity: 1;
+}
+
 .nav-pill {
   display: flex;
   align-items: center;
@@ -885,13 +899,34 @@ body {
 /* Scale each video down to a fraction of the screen height (aspect ratio
    preserved) so multiple items stay compact and the pane simply scrolls. */
 .overlay-media-item video {
-  width: auto;
+  width: 100%;
   height: auto;
   max-width: 100%;
   max-height: 60vh;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
   display: block;
   border-radius: 8px;
   background: #000;
+}
+
+.overlay-media-item.media-broken {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 60vh;
+}
+
+.media-broken-msg {
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--white-dim);
+  padding: 24px;
+}
+
+.media-broken-msg span {
+  font-size: 12px;
+  color: var(--gray-light);
 }
 
 .overlay-media-item:hover img {
@@ -1010,42 +1045,55 @@ body {
   gap: 8px;
 }
 
-/* On narrower windows, stack media above the info instead of a tight split */
+/* On narrower windows, stack media above the info and make the whole
+   sheet one scrollable unit instead of shrinking media to fit a fixed
+   viewport height. Media renders at its natural size; you scroll the
+   popup like a page. */
 @media (max-width: 900px) {
-  .overlay-sheet { width: 94vw; height: 90vh; }
+  .overlay-sheet {
+    width: 94vw;
+    max-height: 90vh;
+    height: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: block;
+  }
+
+  .overlay-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--black-2);
+  }
 
   .overlay-body {
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
-    overflow-y: auto;
+    display: block;
+    overflow: visible;
     padding: 24px 20px;
   }
 
   .overlay-media {
     overflow: visible;
     width: 100%;
+    display: block;
   }
 
-  /* Gallery grids must take their natural height on mobile — without this,
-     flex:1 1 auto + min-height:0 from the desktop rule lets the grid shrink
-     below its content height, and the overflowing photos spill on top of
-     the title/description/tools below instead of pushing it down. */
-  .overlay-media.is-gallery {
-    flex: 0 0 auto;
-    min-height: auto;
+  .overlay-media-item {
+    width: 100%;
+    margin-bottom: 16px;
   }
 
   .overlay-media-item video,
   .overlay-media-item img {
-    max-height: 52vh;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: none;
   }
 
   .overlay-info {
-    flex: 0 0 auto;
-    max-width: 640px;
     width: 100%;
-    overflow: visible;
+    max-width: 640px;
     padding: 0;
   }
 }
@@ -1420,12 +1468,12 @@ body {
   .contact-email { font-size: 15px; word-break: break-word; }
 
   /* Overlay tuned for phones */
-  .overlay-sheet { width: 96vw; height: 92vh; border-radius: 16px; }
+  .overlay-sheet { width: 96vw; max-height: 92vh; height: auto; border-radius: 16px; }
   .overlay-header { padding: 20px 16px; padding-top: max(48px, env(safe-area-inset-top, 48px)); }
-  .overlay-body { padding: 16px 14px; gap: 18px; }
+  .overlay-body { padding: 16px 14px; }
   .overlay-title { font-size: 30px; }
   .overlay-media-item video,
-  .overlay-media-item img { max-height: 50vh; }
+  .overlay-media-item img { max-height: none; }
   .overlay-gallery { grid-template-columns: repeat(2, 1fr); gap: 8px; }
 }
 
