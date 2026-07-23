@@ -280,7 +280,6 @@ const overlayClose     = document.getElementById('overlay-close');
 const overlayTitle     = document.getElementById('overlay-title');
 const overlayDesc      = document.getElementById('overlay-desc');
 const overlayTags      = document.getElementById('overlay-tags');
-const overlayYear      = document.getElementById('overlay-year');
 const overlayMedia     = document.getElementById('overlay-media');
 const overlayEmpty     = document.getElementById('overlay-media-empty');
 const overlayToolsList = document.getElementById('overlay-tools-list');
@@ -295,7 +294,6 @@ function openOverlay(card) {
 
   overlayTitle.textContent   = title;
   overlayDesc.textContent    = desc;
-  overlayYear.textContent    = year;
   overlayTags.innerHTML      = tags.map(t => `<span class="tag">${t}</span>`).join('');
   overlayToolsList.innerHTML = tags.map(t => `<span class="tag">${t}</span>`).join('');
 

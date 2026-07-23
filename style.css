@@ -1433,7 +1433,7 @@ body {
    PHONE  (≤ 480px)
    ===================================================== */
 @media (max-width: 480px) {
-  .nav-wrapper { padding: 10px; padding-right: 96px; }
+  .nav-wrapper { padding: 10px; padding-right: 116px; }
   .nav-pill { padding: 5px 10px; gap: 6px; }
   .logo-mark { font-size: 13px; }
   .nav-links { gap: 0; }
