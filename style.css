@@ -1027,6 +1027,15 @@ body {
     width: 100%;
   }
 
+  /* Gallery grids must take their natural height on mobile — without this,
+     flex:1 1 auto + min-height:0 from the desktop rule lets the grid shrink
+     below its content height, and the overflowing photos spill on top of
+     the title/description/tools below instead of pushing it down. */
+  .overlay-media.is-gallery {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+
   .overlay-media-item video,
   .overlay-media-item img {
     max-height: 52vh;
@@ -1274,6 +1283,10 @@ body {
 @media (max-width: 768px) {
   .nav-wrapper {
     padding: 14px 16px;
+    /* Extra right padding keeps nav links clear of the fixed #site-controls
+       pill, which floats independently top-right and isn't part of the
+       nav's own flex layout. */
+    padding-right: 118px;
   }
 
   .nav-pill {
@@ -1372,7 +1385,7 @@ body {
    PHONE  (≤ 480px)
    ===================================================== */
 @media (max-width: 480px) {
-  .nav-wrapper { padding: 10px; }
+  .nav-wrapper { padding: 10px; padding-right: 96px; }
   .nav-pill { padding: 5px 10px; gap: 6px; }
   .logo-mark { font-size: 13px; }
   .nav-links { gap: 0; }
