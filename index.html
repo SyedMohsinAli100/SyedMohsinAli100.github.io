@@ -14,6 +14,10 @@
       }
     } catch (e) {}
   </script>
+  <!-- Highest-priority fetch for the biggest visual asset on the page, so
+       it's already in flight before CSS/JS even parse — the loader gates
+       reveal on this image, so getting it started early matters. -->
+  <link rel="preload" as="image" href="assets/wallpaper.jpg" fetchpriority="high" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -221,7 +225,6 @@ html:not([data-theme="light"]) .wallpaper-fixed::after {
 
 @media (prefers-reduced-motion: reduce) {
   .wallpaper-fixed { transition: none; }
-  #intro-waves { transition: none; }
 }
 
 /* =====================================================
@@ -1936,25 +1939,6 @@ video {
   pointer-events: none;
 }
 
-/* Prominent loading waves that blur into the ambient gradient */
-#intro-waves {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  filter: blur(0px) saturate(145%);
-  transition: opacity 1.1s ease, filter 1.7s ease;
-  pointer-events: none;
-}
-
-#intro-waves.show { opacity: 1; }
-
-#intro-waves.blurring {
-  filter: blur(50px) saturate(150%);
-  opacity: 0.85;
-}
-
 /* Preload progress: blue line + percentage, shown before the enter button */
 .intro-loader {
   position: absolute;
@@ -2674,7 +2658,6 @@ html[data-theme="light"] #theme-switch .ic-theme-light {
 
   <!-- Intro screen -->
   <div id="intro-screen">
-    <canvas id="intro-waves" aria-hidden="true"></canvas>
     <div id="intro-loader" class="intro-loader">
       <div class="intro-loader-track"><div class="intro-loader-fill" id="intro-loader-fill"></div></div>
       <div class="intro-loader-percent" id="intro-loader-percent">0%</div>
@@ -3393,12 +3376,19 @@ const AudioSys = (function () {
   let pendingMusic = false;
   const MUSIC_VOL = 0.8;
 
-  const sHover = new Audio('assets/audio/hover.mp3'); sHover.volume = 0.25; sHover.preload = 'auto';
-  const sIntro = new Audio('assets/audio/intro.mp3'); sIntro.volume = 0.60; sIntro.preload = 'auto';
-  const sClick = new Audio('assets/audio/click.mp3'); sClick.volume = 1.0; sClick.preload = 'auto';
-  const sMusic = new Audio('assets/audio/ambient.mp3'); sMusic.loop = true; sMusic.volume = MUSIC_VOL; sMusic.preload = 'auto';
-  const sTileHover = new Audio('assets/audio/tile-hover.mp3'); sTileHover.volume = 0.6; sTileHover.preload = 'auto';
-  const sTileClick = new Audio('assets/audio/tile-click.mp3'); sTileClick.volume = 0.35; sTileClick.preload = 'auto';
+  // preload='none' on all six: constructing an <audio> with preload='auto'
+  // makes the browser start fetching it immediately, in parallel with the
+  // wallpaper image and fonts — six extra downloads competing for the same
+  // connection pool on a mobile connection is exactly what was slowing the
+  // wallpaper down and making the ambient track flaky. sIntro/sMusic are
+  // explicitly .load()'d after the page reveals (see preload() below); the
+  // small interaction SFX just load on-demand the first time they're played.
+  const sHover = new Audio('assets/audio/hover.mp3'); sHover.volume = 0.25; sHover.preload = 'none';
+  const sIntro = new Audio('assets/audio/intro.mp3'); sIntro.volume = 0.60; sIntro.preload = 'none';
+  const sClick = new Audio('assets/audio/click.mp3'); sClick.volume = 1.0; sClick.preload = 'none';
+  const sMusic = new Audio('assets/audio/ambient.mp3'); sMusic.loop = true; sMusic.volume = MUSIC_VOL; sMusic.preload = 'none';
+  const sTileHover = new Audio('assets/audio/tile-hover.mp3'); sTileHover.volume = 0.6; sTileHover.preload = 'none';
+  const sTileClick = new Audio('assets/audio/tile-click.mp3'); sTileClick.volume = 0.35; sTileClick.preload = 'none';
 
   const btn = document.getElementById('sound-switch');
   function syncUI() {
@@ -3588,94 +3578,17 @@ const AudioSys = (function () {
   return { unlock, playIntro, startMusic, playClick, playTileHover, playTileClick, preload, isOn: () => on, pauseMusic, resumeMusic };
 })();
 
-// ── Background wave fields + intro sequence ────────────
-// One crisp, "PS4-style" wave field plays during loading, blurs out, and hands
-// off to a soft ambient field that drifts behind the whole site forever.
+// ── Loading intro sequence ──────────────────────────────
+// Gates the reveal on the wallpaper + fonts actually being ready (see
+// below), then fades the intro screen out. The canvas-based wave-field
+// animation this used to hand off to was dead code — it built a wave
+// renderer but never called .start() on it, so it only ever sat idle,
+// holding a canvas context and a permanent window resize listener that
+// did nothing. Removed; the wallpaper + ambient audio are the only
+// "forever" background effects now.
 (function () {
   const introScreen = document.getElementById('intro-screen');
-  const introBtn    = document.getElementById('intro-btn');
-  const introCanvas = document.getElementById('intro-waves');
   const wallpaper   = document.getElementById('wallpaper');
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  function hexToRgb(hex) {
-    hex = (hex || '').trim().replace('#', '');
-    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-    const n = parseInt(hex || '7DD3E8', 16);
-    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-  }
-  const themeColor = () => hexToRgb(getComputedStyle(document.documentElement).getPropertyValue('--cyan'));
-  const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
-  const tint = (c, s) => `${clamp(c.r + s)}, ${clamp(c.g + s * 0.4)}, ${clamp(c.b - s * 0.3)}`;
-
-  function makeWaveField(canvas, opts) {
-    if (!canvas) return null;
-    const ctx = canvas.getContext('2d');
-    const { res, frame, layers } = opts;
-    const stroke = !!opts.prominent;
-    const speedScale = opts.speedScale || 1;
-    let base = themeColor();
-    let W, H, raf = null, last = 0, t = 0, running = false;
-
-    function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2) * res;
-      W = canvas.width  = Math.max(1, Math.floor(canvas.clientWidth  * dpr));
-      H = canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
-    }
-    resize();
-    window.addEventListener('resize', resize, { passive: true });
-
-    function drawWave(l) {
-      const baseY = H * l.yo, A = H * l.amp;
-      const k = (Math.PI * 2) / (W * l.len);
-      const ph = t * l.speed * speedScale * Math.PI * 2;
-      const step = Math.max(5, Math.floor(W / 64));
-      const pts = [];
-      for (let x = 0; x <= W; x += step) {
-        pts.push([x, baseY + Math.sin(x * k + ph) * A + Math.sin(x * k * 0.5 - ph * 1.4) * A * 0.45]);
-      }
-      const rgb = tint(base, l.shift);
-      ctx.beginPath();
-      ctx.moveTo(0, H);
-      for (const p of pts) ctx.lineTo(p[0], p[1]);
-      ctx.lineTo(W, H); ctx.closePath();
-      const g = ctx.createLinearGradient(0, baseY - A, 0, H);
-      g.addColorStop(0, `rgba(${rgb}, ${l.alpha})`);
-      g.addColorStop(1, `rgba(${rgb}, 0)`);
-      ctx.fillStyle = g; ctx.fill();
-    }
-    function render() {
-      ctx.clearRect(0, 0, W, H);
-      ctx.globalCompositeOperation = 'lighter';
-      for (const l of layers) drawWave(l);
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    function loop(now) {
-      if (!running) return;
-      raf = requestAnimationFrame(loop);
-      if (document.hidden) { last = now; return; }
-      if (now - last < frame) return;
-      t += (now - last) / 1000; last = now;
-      render();
-    }
-    return {
-      start()   { if (running) return; running = true; last = 0; raf = requestAnimationFrame(loop); },
-      stop()    { running = false; if (raf) cancelAnimationFrame(raf); },
-      still()   { resize(); t = 8; render(); },
-      recolor() { base = themeColor(); }
-    };
-  }
-
-  const introLayers = [
-    { amp: 0.07, yo: 0.30, len: 1.6,  speed:  0.06,  alpha: 0.28, shift:  45 },
-    { amp: 0.10, yo: 0.44, len: 1.2,  speed: -0.05,  alpha: 0.36, shift:  20 },
-    { amp: 0.13, yo: 0.58, len: 0.95, speed:  0.045, alpha: 0.40, shift:   0 },
-    { amp: 0.11, yo: 0.72, len: 1.4,  speed: -0.035, alpha: 0.34, shift: -25 },
-    { amp: 0.08, yo: 0.86, len: 2.0,  speed:  0.03,  alpha: 0.28, shift: -45 }
-  ];
-
-  const speedScale = reduceMotion ? 0.5 : 1;
-  const intro = makeWaveField(introCanvas, { res: 0.6, frame: 24, layers: introLayers, speedScale });
 
   // No intro markup → just show the wallpaper
   if (!introScreen) {
@@ -3696,10 +3609,43 @@ const AudioSys = (function () {
   }
   updateLoader(0);
 
-  // Loads, then goes straight into the site — no button, no wave intro.
-  AudioSys.preload(updateLoader).then(() => {
+  // Real, not simulated: the loader tracks the actual assets the page
+  // needs before it can show itself without popping/flashing — the
+  // wallpaper image (the biggest visual thing on screen) and the fonts.
+  // Audio warms up in the background separately and never blocks reveal.
+  function loadImage(src) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = resolve;
+      img.onerror = resolve; // don't hang the site if the image 404s
+      img.src = src;
+    });
+  }
+
+  const fontsReady = new Promise(resolve => {
+    const settle = () => {
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(resolve, resolve);
+      else resolve();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', settle);
+    else settle();
+  });
+
+  const wallpaperReady = loadImage('assets/wallpaper.jpg');
+
+  const criticalAssets = [fontsReady, wallpaperReady];
+  let assetsDone = 0;
+  criticalAssets.forEach(p => p.then(() => {
+    assetsDone++;
+    updateLoader(Math.round((assetsDone / criticalAssets.length) * 100));
+  }));
+
+  Promise.all(criticalAssets).then(() => {
     updateLoader(100);
     runSequence();
+    // Warm up intro/ambient audio only *after* the page is visible, so it
+    // never competes with the wallpaper/font fetch for bandwidth.
+    AudioSys.preload(() => {});
   });
 
   function runSequence() {
@@ -4425,27 +4371,36 @@ document.head.appendChild(ks);
 // Any card with data-folder="path/" gets its images discovered automatically.
 // Locally (Live Server) it reads the folder's directory listing.
 // When deployed to a static host, it falls back to an optional photos.json.
+// Live directory listing only exists locally (Live Server/similar dev
+// servers) — on GitHub Pages and every other static host that request
+// always 404s. Checking the hostname up front skips a guaranteed-failed
+// fetch + HTML parse per gallery card on every real page load.
+const IS_LOCAL_DEV = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+
 async function discoverFolderImages(folder) {
   // Real photos only — skip the card's cover thumbnail and any *-thumb files.
   const isImg = n => /\.(jpe?g|png|webp|gif|avif)$/i.test(n) && !/^cover\.|[-_]thumb\./i.test(n);
 
   // 1) Live directory listing — works with Live Server, zero maintenance.
-  try {
-    const res = await fetch(folder, { cache: 'no-store' });
-    if (res.ok) {
-      const html = await res.text();
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      const names = [...doc.querySelectorAll('a')]
-        .map(a => (a.getAttribute('href') || '').split('?')[0].split('#')[0])
-        .map(h => decodeURIComponent((h.split('/').filter(Boolean).pop() || '')))
-        .filter(isImg);
-      const uniq = [...new Set(names)]
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      if (uniq.length) return uniq.map(n => folder + n);
-    }
-  } catch (e) {}
+  //    Dev-only; skipped entirely when deployed (see IS_LOCAL_DEV above).
+  if (IS_LOCAL_DEV) {
+    try {
+      const res = await fetch(folder, { cache: 'no-store' });
+      if (res.ok) {
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const names = [...doc.querySelectorAll('a')]
+          .map(a => (a.getAttribute('href') || '').split('?')[0].split('#')[0])
+          .map(h => decodeURIComponent((h.split('/').filter(Boolean).pop() || '')))
+          .filter(isImg);
+        const uniq = [...new Set(names)]
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        if (uniq.length) return uniq.map(n => folder + n);
+      }
+    } catch (e) {}
+  }
 
-  // 2) Optional manifest fallback for static hosts (e.g. GitHub Pages).
+  // 2) Manifest fallback — the only path taken on static hosts (e.g. GitHub Pages).
   try {
     const res = await fetch(folder + 'photos.json', { cache: 'no-store' });
     if (res.ok) {
