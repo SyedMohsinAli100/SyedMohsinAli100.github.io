@@ -1729,12 +1729,28 @@ body.site-revealed .hero-scroll {
 
   .nav-links {
     width: auto;
-    justify-content: flex-end;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-links li {
+    flex-shrink: 0;
   }
 
   .nav-links a {
     font-size: 12.5px;
     padding: 6px 10px;
+    flex-shrink: 0;
   }
 
   .hero {
@@ -1757,6 +1773,16 @@ body.site-revealed .hero-scroll {
   .section-about,
   .section-contact {
     padding: 80px 24px;
+  }
+
+  .contact-inner {
+    padding: 0 16px;
+    max-width: 100%;
+  }
+
+  .contact-title {
+    white-space: normal;
+    word-break: break-word;
   }
 
   .projects-grid {
@@ -1859,8 +1885,8 @@ body.site-revealed .hero-scroll {
   .project-info { padding: 9px 9px 11px; gap: 5px; }
   .project-title { font-size: 12.5px; }
   .project-desc { font-size: 10.5px; }
-  .project-tags { gap: 4px; }
-  .project-tags .tag { font-size: 9px; padding: 2px 6px; }
+  .project-desc { display: none; }
+  .project-tags { display: none; }
   .card-hover-hint { display: none; }
 
   .skills-block { grid-template-columns: 1fr; gap: 24px; padding-top: 28px; margin-top: 32px; }
