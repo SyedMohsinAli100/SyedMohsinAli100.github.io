@@ -1862,12 +1862,7 @@ body.site-revealed .hero-scroll {
    PHONE  (≤ 480px)
    ===================================================== */
 @media (max-width: 480px) {
-  .nav-wrapper { padding: 10px; padding-right: 122px; }
-  .nav-pill { padding: 5px 6px; gap: 2px; }
-  .logo-mark { font-size: 10.5px; letter-spacing: 0.03em; }
-  .nav-links { gap: 0; }
-  .nav-links a { padding: 6px 5px; font-size: 10px; letter-spacing: 0; }
-
+  .nav-wrapper { display: none; }
   .hero { padding: 16px; }
   .hero-content { padding: 32px 24px; border-radius: 16px; }
   .hero-title { font-size: clamp(38px, 12vw, 54px); margin-bottom: 18px; }
@@ -1882,11 +1877,42 @@ body.site-revealed .hero-scroll {
   .section-title { font-size: clamp(32px, 9vw, 44px); margin-bottom: 32px; }
   .filter-bar { margin-bottom: 32px; }
 
-  /* Three tiles per row — extra compact on small phones */
+  /* Uniform square tiles, 2 per row (2×2 on screen) — phone only.
+     Overrides the "featured" full-width spans and the 16:9 thumb from
+     the tablet breakpoint above so every tile matches. */
   .section { padding-left: 14px; padding-right: 14px; }
-  .projects-grid { gap: 8px; }
+
+  .projects-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .project-card,
+  .project-card.featured,
+  .project-card.featured-right {
+    grid-column: span 1;
+    flex-direction: column;
+    border-radius: 14px;
+  }
+
+  .project-thumb,
+  .project-card.featured .project-thumb,
+  .project-card.featured-right .project-thumb {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+  }
+
+  .project-card.featured .project-info,
+  .project-card.featured-right .project-info {
+    width: 100%;
+  }
+
   .project-info { padding: 9px 9px 11px; gap: 5px; }
-  .project-title { font-size: 12.5px; }
+  .project-title,
+  .project-card.featured .project-title,
+  .project-card.featured-right .project-title {
+    font-size: 12.5px;
+  }
   .project-desc { font-size: 10.5px; }
   .project-desc { display: none; }
   .project-tags { display: none; }
@@ -3632,6 +3658,15 @@ const AudioSys = (function () {
   });
 
   const wallpaperReady = loadImage('assets/wallpaper.jpg');
+
+  // Start the wallpaper's own fade-in the moment the image is actually
+  // decoded and ready — not gated behind fonts or anything else. Most of
+  // the time this happens while the loader screen is still fully opaque
+  // on top of it, so the 1.8s crossfade plays out unseen and the
+  // wallpaper is already sitting there, fully visible, by the time the
+  // loader lifts — instead of the loader disappearing early and exposing
+  // a background that's still mid-fade (which is what read as "abrupt").
+  wallpaperReady.then(() => { if (wallpaper) wallpaper.classList.add('visible'); });
 
   const criticalAssets = [fontsReady, wallpaperReady];
   let assetsDone = 0;
